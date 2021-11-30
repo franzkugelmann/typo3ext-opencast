@@ -1,0 +1,16 @@
+plugin.tx_opencast {
+    view {
+        templateRootPaths {
+            0 = EXT:opencast/Resources/Private/Templates/
+            1 = {$plugin.tx_opencast.view.templateRootPath}
+        }
+        layoutRootPaths {
+            0 = EXT:opencast/Resources/Private/Layouts/
+            1 = {$plugin.tx_opencast.view.layoutRootPath}
+        }
+        partialRootPaths {
+            0 = EXT:opencast/Resources/Private/Partials/
+            1 = {$plugin.tx_opencast.view.partialRootPath}
+        }
+    }
+}

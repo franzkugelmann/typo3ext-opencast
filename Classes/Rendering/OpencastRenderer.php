@@ -9,6 +9,10 @@ use TYPO3\CMS\Core\Resource\OnlineMedia\Helpers\OnlineMediaHelperInterface;
 use TYPO3\CMS\Core\Resource\OnlineMedia\Helpers\OnlineMediaHelperRegistry;
 use TYPO3\CMS\Core\Resource\Rendering\FileRendererInterface;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Extbase\Configuration\ConfigurationManager;
+use TYPO3\CMS\Extbase\Configuration\ConfigurationManagerInterface;
+use TYPO3\CMS\Extbase\Object\ObjectManager;
+use TYPO3\CMS\Fluid\View\StandaloneView;
 
 class OpencastRenderer implements FileRendererInterface
 {
@@ -78,13 +82,23 @@ class OpencastRenderer implements FileRendererInterface
     {
         if ($host = GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('opencast', 'host')) {
             $mediaId = $this->getMediaIdFromFile($file);
-
             $src = $host . 'play/' . $mediaId;
 
-            return sprintf(
-                '<iframe class="paella-player paella-player-6" src="%s" allowfullscreen></iframe>',
-                htmlspecialchars($src, ENT_QUOTES | ENT_HTML5)
-            );
+            try {
+                $typoscript = $this->getTypoScript();
+            } catch (\Exception $e) {
+                return $e->getMessage();
+            }
+
+            $view = $this->getView($typoscript, 'Opencast/Iframe');
+
+            $view->assignMultiple([
+              'src'     => $src,
+              'host'    => $host,
+              'mediaId' => $mediaId,
+            ]);
+
+            return $view->render();
         }
 
         return 'Missing configuration: host!';
@@ -103,5 +117,35 @@ class OpencastRenderer implements FileRendererInterface
         }
 
         return $this->getOnlineMediaHelper($file)->getOnlineMediaId($orgFile);
+    }
+
+    protected function getTypoScript()
+    {
+        $objectManager = GeneralUtility::makeInstance(ObjectManager::class);
+        $configurationManager = $objectManager->get(ConfigurationManager::class);
+        $fullTyposcript = $configurationManager->getConfiguration(ConfigurationManagerInterface::CONFIGURATION_TYPE_FULL_TYPOSCRIPT);
+
+        $typoscript = $fullTyposcript['plugin.']['tx_opencast.'];
+
+        if (empty($typoscript)) {
+            throw new \Exception('Can\'t find typoscript for EXT:opencast!');
+        }
+
+        return $typoscript;
+    }
+
+    protected function getView($settings, $template = 'Opencast/Iframe')
+    {
+        $objectManager = GeneralUtility::makeInstance(ObjectManager::class);
+        $view = $objectManager->get(StandaloneView::class);
+
+        $view->setLayoutRootPaths($settings['view.']['layoutRootPaths.'] ?? []);
+        $view->setPartialRootPaths($settings['view.']['partialRootPaths.'] ?? []);
+        $view->setTemplateRootPaths($settings['view.']['templateRootPaths.'] ?? []);
+
+        $view->setFormat('html');
+        $view->setTemplate($template);
+
+        return $view;
     }
 }
