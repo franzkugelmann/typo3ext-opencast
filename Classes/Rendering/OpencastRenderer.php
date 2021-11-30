@@ -79,10 +79,10 @@ class OpencastRenderer implements FileRendererInterface
         if ($host = GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('opencast', 'host')) {
             $mediaId = $this->getMediaIdFromFile($file);
 
-            return $mediaId;
+            $src = $host . 'play/' . $mediaId;
 
             return sprintf(
-                '<script class="podigee-podcast-player" src="https://cdn.podigee.com/podcast-player/javascripts/podigee-podcast-player.js" data-configuration="%s"></script>',
+                '<iframe class="paella-player paella-player-6" src="%s" allowfullscreen></iframe>',
                 htmlspecialchars($src, ENT_QUOTES | ENT_HTML5)
             );
         }
