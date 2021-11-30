@@ -1,0 +1,2 @@
+# cat=basic; type=string; label=URL of Opencast server: Starting with https and ending with a slash!
+host =
