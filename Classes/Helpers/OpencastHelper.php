@@ -53,8 +53,7 @@ class OpencastHelper extends AbstractOnlineMediaHelper
 
                     // no existing file create new
                     if ($file === null) {
-                        $metadata = $this->fetchMetaData($mediaId);
-                        $filename = $metadata['title'] . '.' . $this->extension;
+                        $filename = $this->getTitle($mediaId) . '.' . $this->extension;
 
                         $file = $this->createNewFile(
                             $targetFolder, // folder
@@ -98,7 +97,25 @@ class OpencastHelper extends AbstractOnlineMediaHelper
      */
     public function getPreviewImage(File $file)
     {
-        return '';
+        $mediaId = $this->getOnlineMediaId($file);
+        $temporaryFileName = $this->getTempFolderPath() . 'opencast_' . md5($mediaId) . '.png';
+
+        if (!file_exists($temporaryFileName)) {
+            $attachments = $this->getAttachments($mediaId);
+            foreach ($attachments ?? [] as $attachment) {
+                $previewImage = false;
+                if ($attachment['type'] === 'presenter/player+preview') {
+                    $previewImage = GeneralUtility::getUrl($attachment['url']);
+                }
+                if ($previewImage !== false) {
+                    file_put_contents($temporaryFileName, $previewImage);
+                    GeneralUtility::fixPermissions($temporaryFileName);
+                    break;
+                }
+            }
+        }
+
+        return $temporaryFileName;
     }
 
     /**
@@ -111,41 +128,65 @@ class OpencastHelper extends AbstractOnlineMediaHelper
      */
     public function getMetaData(File $file)
     {
-        $mediaId = $file->getContents();
+        $mediaId = $this->getOnlineMediaId($file);
         $metadata = $this->fetchMetaData($mediaId);
 
         return $metadata;
     }
 
+    protected function getTitle($mediaId): string
+    {
+        return $this->fetchMetaData($mediaId)['title'];
+    }
+
     protected function fetchMetaData($mediaId): array
     {
-        $metadata = [
-            'title' => $mediaId,
-        ];
+        $metadata = [];
 
+        if ($data = $this->fetchJson($mediaId)) {
+            $metadata['title'] = $data['dcTitle'];
+            $metadata['creator'] = $data['dcCreator'];
+            $metadata['publisher'] = $data['dcPublisher'];
+            $metadata['content_creation_date'] = strtotime($data['dcCreated']);
+            $metadata['content_modification_date'] = strtotime($data['modified']);
+            $metadata['keywords'] = $data['keywords'];
+            if ($data['mediapackage']) {
+                $metadata['duration'] = $data['mediapackage']['duration'] ?? 0;
+            }
+        } else {
+            // Fallback: most basic information we've got!
+            $metadata['title'] = $mediaId;
+        }
+
+        return $metadata;
+    }
+
+    protected function getAttachments($mediaId): ?array
+    {
+        if ($data = $this->fetchJson($mediaId)) {
+            if (is_array($data['mediapackage']) &&
+                is_array($data['mediapackage']['attachments']) &&
+                is_array($data['mediapackage']['attachments']['attachment'])) {
+                return $data['mediapackage']['attachments']['attachment'];
+            }
+        }
+
+        return null;
+    }
+
+    protected function fetchJson($mediaId): ?array
+    {
         if (preg_match('/' . self::MEDIA_ID_PATTERN . '/', $mediaId)) {
             $url = $this->host . 'search/episode.json?id=' . $mediaId;
-
             if ($json = GeneralUtility::getUrl($url)) {
                 $json = json_decode($json, true);
-                #debug($json, $url); die();
-
                 if (is_array($json['search-results']) &&
                     is_array($json['search-results']['result'])) {
-                    $data = $json['search-results']['result'];
-                    $metadata['title'] = $data['dcTitle'];
-                    $metadata['creator'] = $data['dcCreator'];
-                    $metadata['publisher'] = $data['dcPublisher'];
-                    $metadata['content_creation_date'] = strtotime($data['dcCreated']);
-                    $metadata['content_modification_date'] = strtotime($data['modified']);
-                    $metadata['keywords'] = $data['keywords'];
-                    if ($data['mediapackage']) {
-                        $metadata['duration'] = $data['mediapackage']['duration'] ?? 0;
-                    }
+                    return $json['search-results']['result'];
                 }
             }
         }
 
-        return $metadata;
+        return null;
     }
 }
