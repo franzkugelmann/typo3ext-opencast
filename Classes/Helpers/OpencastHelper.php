@@ -12,10 +12,21 @@ class OpencastHelper extends AbstractOnlineMediaHelper
 {
     protected $extension = 'opencast';
 
+    protected $host;
+
+    private const MEDIA_ID_PATTERN = '([0-9a-f\-]+)';
+
     private const PATH_PATTERNS = [
-        'paella\/ui\/watch\.html\?id=([0-9a-f\-]+)',
-        'play\/([0-9a-f\-]+)'
+        'paella\/ui\/watch\.html\?id=' . self::MEDIA_ID_PATTERN,
+        'play\/' . self::MEDIA_ID_PATTERN,
     ];
+
+    public function __construct($extension)
+    {
+        $this->extension = $extension;
+        $this->host = GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('opencast', 'host');
+        $this->host = rtrim($this->host, '/') . '/';
+    }
 
     /**
      * Try to transform given URL to a File
@@ -26,21 +37,30 @@ class OpencastHelper extends AbstractOnlineMediaHelper
      */
     public function transformUrlToFile($url, Folder $targetFolder)
     {
-        if ($host = GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('opencast', 'host')) {
+        if ($this->host) {
             // Prepare host for regex
-            $hostPattern = str_replace(['/', '.'], ['\/', '\.'], $host);
+            $hostPattern = str_replace(['/', '.'], ['\/', '\.'], $this->host);
 
             foreach (self::PATH_PATTERNS as $pathPattern) {
                 if (preg_match('/^' . $hostPattern . $pathPattern . '$/i', $url, $match)) {
-                    $url     = $match[0];
                     $mediaId = $match[1];
 
-                    $file = $this->findExistingFileByOnlineMediaId($mediaId, $targetFolder, $this->extension);
+                    $file = $this->findExistingFileByOnlineMediaId(
+                        $mediaId,
+                        $targetFolder,
+                        $this->extension
+                    );
 
                     // no existing file create new
                     if ($file === null) {
-                        $fileName = $mediaId . '.' . $this->extension;
-                        $file = $this->createNewFile($targetFolder, $fileName, $mediaId);
+                        $metadata = $this->fetchMetaData($mediaId);
+                        $filename = $metadata['title'] . '.' . $this->extension;
+
+                        $file = $this->createNewFile(
+                            $targetFolder, // folder
+                            $filename,     // filename
+                            $mediaId       // content
+                        );
                     }
 
                     return $file;
@@ -91,9 +111,40 @@ class OpencastHelper extends AbstractOnlineMediaHelper
      */
     public function getMetaData(File $file)
     {
-        $metadata = [];
+        $mediaId = $file->getContents();
+        $metadata = $this->fetchMetaData($mediaId);
 
-        $metadata['title'] = $file->getProperty('title');
+        return $metadata;
+    }
+
+    protected function fetchMetaData($mediaId): array
+    {
+        $metadata = [
+            'title' => $mediaId,
+        ];
+
+        if (preg_match('/' . self::MEDIA_ID_PATTERN . '/', $mediaId)) {
+            $url = $this->host . 'search/episode.json?id=' . $mediaId;
+
+            if ($json = GeneralUtility::getUrl($url)) {
+                $json = json_decode($json, true);
+                #debug($json, $url); die();
+
+                if (is_array($json['search-results']) &&
+                    is_array($json['search-results']['result'])) {
+                    $data = $json['search-results']['result'];
+                    $metadata['title'] = $data['dcTitle'];
+                    $metadata['creator'] = $data['dcCreator'];
+                    $metadata['publisher'] = $data['dcPublisher'];
+                    $metadata['content_creation_date'] = strtotime($data['dcCreated']);
+                    $metadata['content_modification_date'] = strtotime($data['modified']);
+                    $metadata['keywords'] = $data['keywords'];
+                    if ($data['mediapackage']) {
+                        $metadata['duration'] = $data['mediapackage']['duration'] ?? 0;
+                    }
+                }
+            }
+        }
 
         return $metadata;
     }
