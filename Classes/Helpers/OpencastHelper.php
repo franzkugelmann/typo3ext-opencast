@@ -164,8 +164,7 @@ class OpencastHelper extends AbstractOnlineMediaHelper
     protected function getAttachments($mediaId): ?array
     {
         if ($data = $this->fetchJson($mediaId)) {
-            if (is_array($data['mediapackage']) &&
-                is_array($data['mediapackage']['attachments']) &&
+            if (isset($data['mediapackage']['attachments']['attachment']) &&
                 is_array($data['mediapackage']['attachments']['attachment'])) {
                 return $data['mediapackage']['attachments']['attachment'];
             }
@@ -187,7 +186,7 @@ class OpencastHelper extends AbstractOnlineMediaHelper
             $url = $this->host . 'search/episode.json?id=' . $mediaId;
             if ($json = GeneralUtility::getUrl($url)) {
                 $json = json_decode($json, true);
-                if (is_array($json['search-results']) &&
+                if (isset($json['search-results']['result']) &&
                     is_array($json['search-results']['result'])) {
                     return $json['search-results']['result'];
                 }
