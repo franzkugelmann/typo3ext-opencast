@@ -174,6 +174,13 @@ class OpencastHelper extends AbstractOnlineMediaHelper
         return null;
     }
 
+    /**
+     * See docs for details on API endpoint:
+     * https://stable.opencast.org/docs.html?path=/search#episodes-1
+     *
+     * @param  string $mediaId
+     * @return array
+     */
     protected function fetchJson($mediaId): ?array
     {
         if (preg_match('/' . self::MEDIA_ID_PATTERN . '/', $mediaId)) {
