@@ -21,6 +21,8 @@ class OpencastHelper extends AbstractOnlineMediaHelper
         'play\/' . self::MEDIA_ID_PATTERN,
     ];
 
+    private static $cache = [];
+
     public function __construct($extension)
     {
         $this->extension = $extension;
@@ -183,14 +185,18 @@ class OpencastHelper extends AbstractOnlineMediaHelper
     protected function fetchJson($mediaId): ?array
     {
         if (preg_match('/' . self::MEDIA_ID_PATTERN . '/', $mediaId)) {
-            $url = $this->host . 'search/episode.json?id=' . $mediaId;
-            if ($json = GeneralUtility::getUrl($url)) {
-                $json = json_decode($json, true);
-                if (isset($json['search-results']['result']) &&
-                    is_array($json['search-results']['result'])) {
-                    return $json['search-results']['result'];
+            if (empty(self::$cache[$mediaId])) {
+                $url = $this->host . 'search/episode.json?id=' . $mediaId;
+                if ($json = GeneralUtility::getUrl($url)) {
+                    $json = json_decode($json, true);
+                    if (isset($json['search-results']['result']) &&
+                        is_array($json['search-results']['result'])) {
+                        self::$cache[$mediaId] = $json['search-results']['result'];
+                    }
                 }
             }
+
+            return self::$cache[$mediaId] ?? null;
         }
 
         return null;
