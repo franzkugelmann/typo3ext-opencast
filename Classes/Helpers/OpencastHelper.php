@@ -12,10 +12,23 @@ class OpencastHelper extends AbstractOnlineMediaHelper
 {
     protected $extension = 'opencast';
 
+    protected $host;
+
+    private const MEDIA_ID_PATTERN = '([0-9a-f\-]+)';
+
     private const PATH_PATTERNS = [
-        'paella\/ui\/watch\.html\?id=([0-9a-f\-]+)',
-        'play\/([0-9a-f\-]+)'
+        'paella\/ui\/watch\.html\?id=' . self::MEDIA_ID_PATTERN,
+        'play\/' . self::MEDIA_ID_PATTERN,
     ];
+
+    private static $cache = [];
+
+    public function __construct($extension)
+    {
+        $this->extension = $extension;
+        $this->host = GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('opencast', 'host');
+        $this->host = rtrim($this->host, '/') . '/';
+    }
 
     /**
      * Try to transform given URL to a File
@@ -26,21 +39,29 @@ class OpencastHelper extends AbstractOnlineMediaHelper
      */
     public function transformUrlToFile($url, Folder $targetFolder)
     {
-        if ($host = GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('opencast', 'host')) {
+        if ($this->host) {
             // Prepare host for regex
-            $hostPattern = str_replace(['/', '.'], ['\/', '\.'], $host);
+            $hostPattern = str_replace(['/', '.'], ['\/', '\.'], $this->host);
 
             foreach (self::PATH_PATTERNS as $pathPattern) {
                 if (preg_match('/^' . $hostPattern . $pathPattern . '$/i', $url, $match)) {
-                    $url     = $match[0];
                     $mediaId = $match[1];
 
-                    $file = $this->findExistingFileByOnlineMediaId($mediaId, $targetFolder, $this->extension);
+                    $file = $this->findExistingFileByOnlineMediaId(
+                        $mediaId,
+                        $targetFolder,
+                        $this->extension
+                    );
 
                     // no existing file create new
                     if ($file === null) {
-                        $fileName = $mediaId . '.' . $this->extension;
-                        $file = $this->createNewFile($targetFolder, $fileName, $mediaId);
+                        $filename = $this->getTitle($mediaId) . '.' . $this->extension;
+
+                        $file = $this->createNewFile(
+                            $targetFolder, // folder
+                            $filename,     // filename
+                            $mediaId       // content
+                        );
                     }
 
                     return $file;
@@ -78,7 +99,25 @@ class OpencastHelper extends AbstractOnlineMediaHelper
      */
     public function getPreviewImage(File $file)
     {
-        return '';
+        $mediaId = $this->getOnlineMediaId($file);
+        $temporaryFileName = $this->getTempFolderPath() . 'opencast_' . md5($mediaId) . '.png';
+
+        if (!file_exists($temporaryFileName)) {
+            $attachments = $this->getAttachments($mediaId);
+            foreach ($attachments ?? [] as $attachment) {
+                $previewImage = false;
+                if ($attachment['type'] === 'presenter/player+preview') {
+                    $previewImage = GeneralUtility::getUrl($attachment['url']);
+                }
+                if ($previewImage !== false) {
+                    file_put_contents($temporaryFileName, $previewImage);
+                    GeneralUtility::fixPermissions($temporaryFileName);
+                    break;
+                }
+            }
+        }
+
+        return $temporaryFileName;
     }
 
     /**
@@ -91,10 +130,75 @@ class OpencastHelper extends AbstractOnlineMediaHelper
      */
     public function getMetaData(File $file)
     {
-        $metadata = [];
-
-        $metadata['title'] = $file->getProperty('title');
+        $mediaId = $this->getOnlineMediaId($file);
+        $metadata = $this->fetchMetaData($mediaId);
 
         return $metadata;
+    }
+
+    protected function getTitle($mediaId): string
+    {
+        return $this->fetchMetaData($mediaId)['title'];
+    }
+
+    protected function fetchMetaData($mediaId): array
+    {
+        $metadata = [];
+
+        if ($data = $this->fetchJson($mediaId)) {
+            $metadata['title'] = $data['dcTitle'];
+            $metadata['creator'] = $data['dcCreator'];
+            $metadata['publisher'] = $data['dcPublisher'];
+            $metadata['content_creation_date'] = strtotime($data['dcCreated']);
+            $metadata['content_modification_date'] = strtotime($data['modified']);
+            $metadata['keywords'] = $data['keywords'];
+            if ($data['mediapackage']) {
+                $metadata['duration'] = $data['mediapackage']['duration'] ?? 0;
+            }
+        } else {
+            // Fallback: most basic information we've got!
+            $metadata['title'] = $mediaId;
+        }
+
+        return $metadata;
+    }
+
+    protected function getAttachments($mediaId): ?array
+    {
+        if ($data = $this->fetchJson($mediaId)) {
+            if (isset($data['mediapackage']['attachments']['attachment']) &&
+                is_array($data['mediapackage']['attachments']['attachment'])) {
+                return $data['mediapackage']['attachments']['attachment'];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * See docs for details on API endpoint:
+     * https://stable.opencast.org/docs.html?path=/search#episodes-1
+     *
+     * @param  string $mediaId
+     * @return array
+     */
+    protected function fetchJson($mediaId): ?array
+    {
+        if (preg_match('/' . self::MEDIA_ID_PATTERN . '/', $mediaId)) {
+            if (empty(self::$cache[$mediaId])) {
+                $url = $this->host . 'search/episode.json?id=' . $mediaId;
+                if ($json = GeneralUtility::getUrl($url)) {
+                    $json = json_decode($json, true);
+                    if (isset($json['search-results']['result']) &&
+                        is_array($json['search-results']['result'])) {
+                        self::$cache[$mediaId] = $json['search-results']['result'];
+                    }
+                }
+            }
+
+            return self::$cache[$mediaId] ?? null;
+        }
+
+        return null;
     }
 }
