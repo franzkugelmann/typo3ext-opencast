@@ -1,5 +1,5 @@
 <?php
-defined('TYPO3_MODE') || die('Access denied.');
+defined('TYPO3') || die('Access denied.');
 
 // Register opencast as media type
 $GLOBALS['TYPO3_CONF_VARS']['SYS']['fal']['onlineMediaHelpers']['opencast'] = \Uos\Opencast\Helpers\OpencastHelper::class;
