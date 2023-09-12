@@ -6,13 +6,12 @@ $EM_CONF[$_EXTKEY] = [
     'category' => 'plugin',
     'version' => '1.1.1',
     'state' => 'stable',
-    'clearCacheOnLoad' => true,
     'author' => 'Philipp Kitzberger',
     'author_email' => 'beratung@rz.uni-osnabrueck.de',
     'author_company' => 'Osnabrück University',
     'constraints' => [
         'depends' => [
-            'typo3' => '10.4.0-10.4.99',
+            'typo3' => '10.4.0-11.5.99',
         ],
         'conflicts' => [
         ],
