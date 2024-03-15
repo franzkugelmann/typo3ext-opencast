@@ -147,13 +147,13 @@ class OpencastHelper extends AbstractOnlineMediaHelper
         $metadata = [];
 
         if ($data = $this->fetchJson($mediaId)) {
-            $metadata['title'] = $data['dcTitle'];
-            $metadata['creator'] = $data['dcCreator'];
-            $metadata['publisher'] = $data['dcPublisher'];
-            $metadata['content_creation_date'] = strtotime($data['dcCreated']);
-            $metadata['content_modification_date'] = strtotime($data['modified']);
-            $metadata['keywords'] = $data['keywords'];
-            if ($data['mediapackage']) {
+            $metadata['title'] = $data['dcTitle'] ?? '';
+            $metadata['creator'] = $data['dcCreator'] ?? '';
+            $metadata['publisher'] = $data['dcPublisher'] ?? '';
+            $metadata['content_creation_date'] = strtotime($data['dcCreated'] ?? '');
+            $metadata['content_modification_date'] = strtotime($data['modified'] ?? '');
+            $metadata['keywords'] = $data['keywords'] ?? '';
+            if ($data['mediapackage'] ?? false) {
                 $metadata['duration'] = $data['mediapackage']['duration'] ?? 0;
             }
         } else {
