@@ -1,4 +1,5 @@
 <?php
+
 namespace Uos\Opencast\Helpers;
 
 use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
@@ -10,9 +11,7 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 class OpencastHelper extends AbstractOnlineMediaHelper
 {
-    protected $extension = 'opencast';
-
-    protected $host;
+    protected string $host;
 
     private const MEDIA_ID_PATTERN = '([0-9a-f\-]+)';
 
@@ -22,11 +21,10 @@ class OpencastHelper extends AbstractOnlineMediaHelper
         'play\/' . self::MEDIA_ID_PATTERN,
     ];
 
-    private static $cache = [];
+    private static array $cache = [];
 
-    public function __construct($extension)
+    public function __construct(protected $extension)
     {
-        $this->extension = $extension;
         $this->host = GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('opencast', 'host');
         $this->host = rtrim($this->host, '/') . '/';
     }
@@ -74,6 +72,7 @@ class OpencastHelper extends AbstractOnlineMediaHelper
             );
             die();
         }
+        return null;
     }
 
     /**
