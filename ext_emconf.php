@@ -1,6 +1,6 @@
 <?php
 
-$EM_CONF['opencast'] = [
+$EM_CONF[$_EXTKEY] = [
     'title' => 'Opencast',
     'description' => 'Support for Opencast videos',
     'category' => 'plugin',
@@ -11,7 +11,7 @@ $EM_CONF['opencast'] = [
     'author_company' => 'Osnabrück University',
     'constraints' => [
         'depends' => [
-            'typo3' => '11.5.0-12.4.99',
+            'typo3' => '12.4.0-12.4.99',
         ],
         'conflicts' => [
         ],
